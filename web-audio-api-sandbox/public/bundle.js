@@ -16,8 +16,12 @@
         frequency: this.frequency,
         type: this.type
       });
-      this.oscillatorGainNode = new GainNode(this.audioContext, { gain: this.gain });
-      this.modulationGainNode = new GainNode(this.audioContext, { gain: this.gain * 1e3 });
+      this.oscillatorGainNode = new GainNode(this.audioContext, {
+        gain: this.gain
+      });
+      this.modulationGainNode = new GainNode(this.audioContext, {
+        gain: this.gain * 1e3
+      });
       this.oscillatorNode.connect(this.oscillatorGainNode);
       this.oscillatorNode.connect(this.modulationGainNode);
     }
@@ -29,15 +33,24 @@
     }
     setFrequency(frequency) {
       this.frequency = frequency;
-      this.oscillatorNode.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+      this.oscillatorNode.frequency.setValueAtTime(
+        frequency,
+        this.audioContext.currentTime
+      );
     }
     setAudioGain(gain) {
       this.gain = gain;
-      this.oscillatorGainNode.gain.setValueAtTime(gain, this.audioContext.currentTime);
+      this.oscillatorGainNode.gain.setValueAtTime(
+        gain,
+        this.audioContext.currentTime
+      );
     }
     setModulationGain(gain) {
       this.gain = gain;
-      this.modulationGainNode.gain.setValueAtTime(this.gain * 1e3, this.audioContext.currentTime);
+      this.modulationGainNode.gain.setValueAtTime(
+        this.gain * 1e3,
+        this.audioContext.currentTime
+      );
     }
     setType(type) {
       this.type = type;
@@ -65,8 +78,8 @@
                   <input
                     class="h-2 w-full cursor-pointer appearance-none rounded-full bg-primary/20 dark:bg-primary/50 slider-thumb"
                     id="${params.name}-frequency"
-                    max="10000"
-                    min="20"
+                    max="4000"
+                    min="1"
                     type="range"
                     value="500"
                   />
@@ -125,11 +138,15 @@
   // src/oscillator/oscillator.main.ts
   function createOscillator(name, audioContext, contentContext) {
     contentContext.appendChild(createOscillatorUI({ name }));
-    const frequencyInput = document.getElementById(`${name}-frequency`);
+    const frequencyInput = document.getElementById(
+      `${name}-frequency`
+    );
     if (!frequencyInput) {
       throw new Error("Frequency input not found");
     }
-    const frequencyInputLabel = document.getElementById(`${name}-frequency-label`);
+    const frequencyInputLabel = document.getElementById(
+      `${name}-frequency-label`
+    );
     if (!frequencyInputLabel) {
       throw new Error("Frequency input label not found");
     }
@@ -138,7 +155,9 @@
     if (!gainInput) {
       throw new Error("Gain input not found");
     }
-    const gainInputLabel = document.getElementById(`${name}-gain-label`);
+    const gainInputLabel = document.getElementById(
+      `${name}-gain-label`
+    );
     if (!gainInputLabel) {
       throw new Error("Gain input label not found");
     }
@@ -164,7 +183,9 @@
       gainInputLabel.textContent = gainInput.value;
     });
     typeInput.addEventListener("change", (event) => {
-      oscillatorAudio.setType(event.target.value);
+      oscillatorAudio.setType(
+        event.target.value
+      );
     });
     return oscillatorAudio;
   }
