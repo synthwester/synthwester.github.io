@@ -1,0 +1,115 @@
+<!doctype html>
+<html class="dark" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>AudioFX Plugin</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&amp;display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
+      rel="stylesheet"
+    />
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              primary: '#242428',
+              'background-light': '#f7f7f7',
+              'background-dark': '#18181a',
+            },
+            fontFamily: {
+              display: ['Space Grotesk'],
+            },
+            borderRadius: {
+              DEFAULT: '0.25rem',
+              lg: '0.5rem',
+              xl: '0.75rem',
+              full: '9999px',
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      .slider-thumb::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 1rem;
+        height: 1rem;
+        border-radius: 9999px;
+        background-color: #f7f7f7;
+        cursor: pointer;
+        margin-top: -3px;
+      }
+      .dark .slider-thumb::-webkit-slider-thumb {
+        background-color: #f7f7f7;
+      }
+      .slider-thumb::-moz-range-thumb {
+        width: 1rem;
+        height: 1rem;
+        border-radius: 9999px;
+        background-color: #f7f7f7;
+        cursor: pointer;
+      }
+      .dark .slider-thumb::-moz-range-thumb {
+        background-color: #f7f7f7;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-background-light dark:bg-background-dark font-display text-neutral-800 dark:text-neutral-200"
+  >
+    <div class="flex h-screen w-full flex-col">
+      <header
+        class="flex items-center justify-between border-b border-primary/20 dark:border-primary/50 px-6 py-3"
+      >
+        <div class="flex items-center gap-3">
+          <div class="text-primary dark:text-white">
+            <svg
+              fill="none"
+              height="24"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              viewBox="0 0 24 24"
+              width="24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <polygon
+                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+              ></polygon>
+            </svg>
+          </div>
+          <h1 class="text-lg font-bold text-neutral-900 dark:text-white">
+            2-Operator FM Synthesis
+          </h1>
+        </div>
+      </header>
+      <main class="flex flex-1 items-center justify-center p-4 sm:p-6">
+        <div
+          id="content"
+          class="w-full max-w-md space-y-6 rounded-xl bg-background-light dark:bg-primary/20 p-8 shadow-lg"
+        >
+          <div class="text-center">
+            <h2 class="text-2xl font-bold text-neutral-900 dark:text-white">
+              2-Operator FM Synthesis
+            </h2>
+            <p class="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
+              Simple 2-Operator FM Synthesis.
+            </p>
+          </div>
+        </div>
+      </main>
+    </div>
+    <script type="module" src="./public/bundle.js"></script>
+  </body>
+</html>
