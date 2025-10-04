@@ -1,19 +1,125 @@
 "use strict";
 (() => {
-  // src/utils/epsilon.ts
+  // src/sound/constant/constant.audio.ts
+  var ConstantAudio = class {
+    constructor(audioContext) {
+      this.audioContext = audioContext;
+      this.constantNode = new ConstantSourceNode(this.audioContext);
+      this.constantNode.start();
+    }
+    get node() {
+      return this.constantNode;
+    }
+  };
+
+  // src/sound/constant/constant.module.ts
+  var ConstantModule = class {
+    constructor(audioContext) {
+      this.audioContext = audioContext;
+      this.audio = new ConstantAudio(this.audioContext);
+    }
+  };
+
+  // src/ui/UILookup.ts
+  var UILookup = class {
+    static findSliderElement(ui, { id, parameterName }) {
+      const element = ui.querySelector(
+        `#${id}-${parameterName}`
+      );
+      if (!element) {
+        throw new Error(`"${id}-${parameterName}" slider not found`);
+      }
+      const label = ui.querySelector(
+        `#${id}-${parameterName}-label`
+      );
+      if (!label) {
+        console.log(`${id}-${parameterName}-label`);
+        throw new Error('"${id}-${parameterName}" slider label not found');
+      }
+      label.textContent = element.value;
+      return { element, label };
+    }
+    static findRadioElement(ui, { id, parameterName }) {
+      const element = ui.querySelector(
+        `#${id}-${parameterName}`
+      );
+      if (!element) {
+        throw new Error("Type input not found");
+      }
+      return { element };
+    }
+    static findButtonElement(ui, { id, parameterName }) {
+      const element = ui.querySelector(
+        `#${id}-${parameterName}`
+      );
+      if (!element) {
+        throw new Error("Trigger button not found");
+      }
+      return { element };
+    }
+  };
+
+  // src/ui/UIEventHandler.ts
+  var UIEventHandler = class {
+    static attach(elements, ui, callbackArray) {
+      for (const [index, element] of elements.entries()) {
+        switch (element.type) {
+          case "slider":
+            const { element: foundSlider, label } = UILookup.findSliderElement(
+              ui,
+              {
+                id: element.id,
+                parameterName: element.parameterName
+              }
+            );
+            callbackArray[index](foundSlider.value);
+            foundSlider.addEventListener("input", ({ target }) => {
+              const { value } = target;
+              callbackArray[index](value);
+              label.textContent = foundSlider.value;
+            });
+            break;
+          case "radio":
+            const { element: foundRadio } = UILookup.findRadioElement(ui, {
+              id: element.id,
+              parameterName: element.parameterName
+            });
+            callbackArray[index](foundRadio.value);
+            foundRadio.addEventListener("change", ({ target }) => {
+              const { value } = target;
+              callbackArray[index](value);
+            });
+            break;
+          case "button":
+            const { element: foundButton } = UILookup.findButtonElement(ui, {
+              id: element.id,
+              parameterName: element.parameterName
+            });
+            callbackArray[index](foundButton.value);
+            foundButton.addEventListener("click", () => {
+              callbackArray[index]();
+            });
+            break;
+          default:
+            break;
+        }
+      }
+    }
+  };
+
+  // src/utils/constant.ts
   var epsilon = 1e-5;
 
-  // src/d-envelope/d-envelope.audio.ts
+  // src/sound/d-envelope/d-envelope.audio.ts
   var DEnvelopeAudio = class {
-    constructor({ decay }, audioContext) {
-      this.decay = 0.8;
+    constructor(audioContext, { decay }) {
       this.audioContext = audioContext;
       this.decay = decay;
       this.gainNode = new GainNode(this.audioContext, { gain: epsilon });
     }
-    trigger() {
-      const now = this.audioContext.currentTime;
-      this.gainNode.gain.cancelScheduledValues(this.decay);
+    trigger(externalCurrentTime) {
+      const now = externalCurrentTime || this.audioContext.currentTime;
+      this.gainNode.gain.cancelScheduledValues(now);
       this.gainNode.gain.setValueAtTime(1, now);
       this.gainNode.gain.exponentialRampToValueAtTime(epsilon, now + this.decay);
     }
@@ -25,89 +131,263 @@
     }
   };
 
-  // src/d-envelope/d-envelope.ui.ts
-  function dEnvelopeUI(params) {
-    return `<fieldset class="rounded-lg border border-primary/30 dark:border-primary/50 p-6">
-            <legend class="px-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">D-Envelope</legend>
-            <div class="space-y-6">
-              <div>
-                <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300" for="${params.name}-d-envelope-decay"
-                  >Decay</label
-                >
-                <div class="mt-2 flex items-center gap-4">
-                  <input
-                    class="h-2 w-full cursor-pointer appearance-none rounded-full bg-primary/20 dark:bg-primary/50 slider-thumb"
-                    id="${params.name}-d-envelope-decay"
-                    max="5"
-                    min="0"
-                    type="range"
-                    value="1"
-                    step="0.1"
-                  />
-                  <span id="${params.name}-d-envelope-decay-label" class="w-10 text-right text-sm font-medium text-neutral-900 dark:text-white">500</span>
-                </div>
-                <div>
-              </div>
-            </div>
-            <button id="${params.name}-d-envelope-trigger" class="w-full rounded-lg bg-primary py-3 text-sm font-bold text-white transition-colors hover:bg-primary/90">
-              Trigger
-            </button>
-          </fieldset>`;
-  }
-  function createDEnvelopeUI(params) {
-    const wrapper = document.createElement("div");
-    wrapper.innerHTML = dEnvelopeUI(params);
-    return wrapper;
+  // src/ui/components/button.ts
+  function button({
+    id,
+    parameterName,
+    displayValue
+  }) {
+    return `
+<button id="${id}-${parameterName}" class="w-full rounded-lg bg-primary py-3 text-sm font-bold text-white transition-colors hover:bg-primary/90">
+  ${displayValue}
+</button> 
+  `;
   }
 
-  // src/d-envelope/d-envelope.module.ts
-  var DEnvelopeModule = class {
-    constructor({ name }, audioContext) {
-      this.name = name;
-      this.audioContext = audioContext;
-      this.ui = createDEnvelopeUI({ name: this.name });
-      this.audio = new DEnvelopeAudio({ decay: 0.8 }, this.audioContext);
-      this.setupEventListeners();
+  // src/ui/components/fieldset.ts
+  function fieldset({ label }) {
+    return `
+<fieldset class="rounded-lg border border-primary/30 dark:border-gray-700 p-6">
+  <legend class="px-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">${label}</legend>
+  <div class="space-y-6">
+  </div>
+</fieldset>`;
+  }
+
+  // src/ui/components/radiobutton.ts
+  function radiobutton({
+    id,
+    label,
+    parameterName,
+    parameters
+  }) {
+    return `
+<span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">${label}</span>
+<div id="${id}-${parameterName}" class="mt-2 grid grid-cols-${parameters.length} gap-2">
+  ${parameters.map((parameter) => {
+      return singleRadioButton({ id, parameterName, parameters: parameter });
+    }).join("\n")}
+`;
+  }
+  function singleRadioButton({
+    id,
+    parameterName,
+    parameters
+  }) {
+    return `  
+<label
+  class="flex cursor-pointer items-center justify-center rounded border border-primary/30 bg-background-light px-4 py-2 text-center text-sm font-medium text-neutral-700 has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-white dark:border-primary/50 dark:bg-primary/30 dark:text-neutral-200 dark:has-[:checked]:border-primary dark:has-[:checked]:bg-primary dark:has-[:checked]:text-white"
+>
+  <input ${parameters.checked ? "checked" : ""} class="sr-only" name="${id}-${parameterName}" type="radio" value="${parameters.value}" />
+  <span>${parameters.displayValue}</span>
+</label>`;
+  }
+
+  // src/ui/components/slider.ts
+  function slider({
+    id,
+    label,
+    parameterName,
+    parameters: {
+      min = 1,
+      max = 4e3,
+      value = 500,
+      type = "range",
+      step = 1
+    } = {}
+  }) {
+    return `
+<label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300" for="${id}-${parameterName}"
+  >${label}</label
+>
+<div class="mt-2 flex items-center gap-4">
+  <input
+    class="h-2 w-full cursor-pointer appearance-none rounded-full bg-primary/20 dark:bg-primary/50 slider-thumb"
+    id="${id}-${parameterName}"
+    min="${min}"
+    max="${max}"      
+    type="${type}"
+    value="${value}"
+    step="${step}"
+  />
+  <span id="${id}-${parameterName}-label" class="w-10 text-right text-sm font-medium text-neutral-900 dark:text-white">500</span>
+</div>
+`;
+  }
+
+  // src/ui/UIBuilder.ts
+  var UIBuilder = class _UIBuilder {
+    static {
+      this.elements = new Array();
     }
-    setupEventListeners() {
-      const decayInput = this.ui.querySelector(
-        `#${this.name}-d-envelope-decay`
-      );
-      if (!decayInput) {
-        throw new Error("decayInput input not found");
-      }
-      const decayInputLabel = this.ui.querySelector(
-        `#${this.name}-d-envelope-decay-label`
-      );
-      if (!decayInputLabel) {
-        throw new Error("decayInput label not found");
-      }
-      decayInputLabel.textContent = decayInput.value;
-      const triggerButton = this.ui.querySelector(
-        `#${this.name}-d-envelope-trigger`
-      );
-      if (!triggerButton) {
-        throw new Error("Trigger button not found");
-      }
-      this.audio.setDecay(Number(decayInput.value));
-      decayInput.addEventListener("input", () => {
-        this.audio.setDecay(Number(decayInput.value));
-        decayInputLabel.textContent = decayInput.value;
+    constructor() {
+    }
+    static wrap(element) {
+      const wrapper = document.createElement("div");
+      wrapper.innerHTML = element;
+      return wrapper;
+    }
+    static addSlider(properties) {
+      const element = slider(properties);
+      _UIBuilder.elements.push({
+        wrapper: _UIBuilder.wrap(element),
+        element: {
+          ...properties,
+          type: "slider"
+        }
       });
-      triggerButton.addEventListener("click", () => {
-        console.log("Envelope triggered");
-        this.audio.trigger();
+      return this;
+    }
+    static addButton(properties) {
+      const element = button(properties);
+      _UIBuilder.elements.push({
+        wrapper: _UIBuilder.wrap(element),
+        element: {
+          ...properties,
+          type: "button"
+        }
       });
+      return this;
+    }
+    static addRadioButton(properties) {
+      const element = radiobutton(properties);
+      _UIBuilder.elements.push({
+        wrapper: _UIBuilder.wrap(element),
+        element: {
+          ...properties,
+          type: "radio"
+        }
+      });
+      return this;
+    }
+    static build(label, buildElements) {
+      const ui = _UIBuilder.wrap(fieldset({ label }));
+      if (_UIBuilder.elements.length === 0 && buildElements && buildElements?.length > 0) {
+        ui.querySelector("div")?.append(...buildElements);
+        return {
+          ui,
+          elements: []
+        };
+      }
+      ui.querySelector("div")?.append(
+        ..._UIBuilder.elements.map((item) => item.wrapper)
+      );
+      const elements = _UIBuilder.elements.map((item) => item.element);
+      _UIBuilder.elements = new Array();
+      return {
+        ui,
+        elements
+      };
     }
   };
 
-  // src/mixer/mixer.audio.ts
+  // src/sound/d-envelope/d-envelope.ui.ts
+  function createDEnvelopeUI(params) {
+    const ui = UIBuilder.addSlider({
+      id: params.name,
+      parameterName: "d-envelope-decay",
+      label: "Decay",
+      parameters: { min: 0, max: 5, value: 1, step: 0.01, type: "range" }
+    }).addButton({
+      id: params.name,
+      parameterName: "d-envelope-trigger",
+      displayValue: "Trigger"
+    }).build(params.label);
+    return ui;
+  }
+
+  // src/sound/d-envelope/d-envelope.module.ts
+  var DEnvelopeModule = class {
+    constructor(audioContext, { name, label }) {
+      this.name = name;
+      this.audioContext = audioContext;
+      const { ui, elements } = createDEnvelopeUI({
+        name: this.name,
+        label
+      });
+      this.ui = ui;
+      this.elements = elements;
+      this.audio = new DEnvelopeAudio(this.audioContext, { decay: 0.8 });
+      this.setupEventListeners();
+    }
+    setupEventListeners() {
+      const eventHandlers = [
+        (value) => {
+          this.audio.setDecay(Number(value));
+        },
+        () => {
+          this.audio.trigger();
+        }
+      ];
+      UIEventHandler.attach(this.elements, this.ui, eventHandlers);
+    }
+  };
+
+  // src/sound/dca/dca.audio.ts
+  var DcaAudio = class {
+    constructor(audioContext, { gain }) {
+      this.audioContext = audioContext;
+      this.gain = gain;
+      this.gainNode = new GainNode(this.audioContext, { gain: this.gain });
+    }
+    setGain(value) {
+      this.gain = value;
+      this.gainNode.gain.setValueAtTime(value, this.audioContext.currentTime);
+    }
+    get node() {
+      return this.gainNode;
+    }
+  };
+
+  // src/sound/dca/dca.ui.ts
+  function createDcaUI(params) {
+    const ui = UIBuilder.addSlider({
+      id: params.name,
+      parameterName: "dca-gain",
+      label: "Gain",
+      parameters: {
+        min: 0,
+        max: 1e3,
+        value: params.gain,
+        step: 1,
+        type: "range"
+      }
+    }).build(params.label);
+    return ui;
+  }
+
+  // src/sound/dca/dca.module.ts
+  var DcaModule = class {
+    constructor(audioContext, {
+      name,
+      label,
+      gain = 1e3
+    }) {
+      this.name = name;
+      this.audioContext = audioContext;
+      const { ui, elements } = createDcaUI({ name: this.name, label, gain });
+      this.ui = ui;
+      this.elements = elements;
+      this.audio = new DcaAudio(this.audioContext, { gain: 1 });
+      this.setupEventListeners();
+    }
+    setupEventListeners() {
+      const eventHandlers = [
+        (value) => {
+          this.audio.setGain(Number(value));
+        }
+      ];
+      UIEventHandler.attach(this.elements, this.ui, eventHandlers);
+    }
+  };
+
+  // src/sound/mixer/mixer.audio.ts
   var MixerAudio = class {
-    constructor({
+    constructor(audioContext, {
       channel1Level = 1,
       channel2Level = 1,
       channel3Level = 1
-    }, audioContext) {
+    }) {
       this.channel1Level = 1;
       this.channel2Level = 1;
       this.channel3Level = 1;
@@ -150,146 +430,75 @@
     }
   };
 
-  // src/mixer/mixer.ui.ts
-  function mixerUI(params) {
-    return `<fieldset class="rounded-lg border border-primary/30 dark:border-primary/50 p-6">
-            <legend class="px-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Mixer</legend>
-            <div class="space-y-6">
-              <div>
-                <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300" for="${params.name}-channel-1-level"
-                  >Channel 1 Level</label
-                >
-                <div class="mt-2 flex items-center gap-4">
-                  <input
-                    class="h-2 w-full cursor-pointer appearance-none rounded-full bg-primary/20 dark:bg-primary/50 slider-thumb"
-                    id="${params.name}-channel-1-level"
-                    max="1"
-                    min="0"
-                    type="range"
-                    value="1"
-                    step="0.01"
-                  />
-                  <span id="${params.name}-channel-1-level-label" class="w-10 text-right text-sm font-medium text-neutral-900 dark:text-white">500</span>
-                </div>
-                <div>
-                <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300" for="${params.name}-channel-2-level"
-                  >Channel 2 Level</label
-                >
-                <div class="mt-2 flex items-center gap-4">
-                  <input
-                    class="h-2 w-full cursor-pointer appearance-none rounded-full bg-primary/20 dark:bg-primary/50 slider-thumb"
-                    id="${params.name}-channel-2-level"
-                    max="1"
-                    min="0"
-                    type="range"
-                    value="1"
-                    step="0.01"
-                  />
-                  <span id="${params.name}-channel-2-level-label" class="w-10 text-right text-sm font-medium text-neutral-900 dark:text-white">500</span>
-                </div>
-                <div>
-                <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300" for="${params.name}-channel-3-level"
-                  >Channel 3 Level</label
-                >
-                <div class="mt-2 flex items-center gap-4">
-                  <input
-                    class="h-2 w-full cursor-pointer appearance-none rounded-full bg-primary/20 dark:bg-primary/50 slider-thumb"
-                    id="${params.name}-channel-3-level"
-                    max="1"
-                    min="0"
-                    type="range"
-                    value="1"
-                    step="0.01"
-                  />
-                  <span id="${params.name}-channel-3-level-label" class="w-10 text-right text-sm font-medium text-neutral-900 dark:text-white">500</span>
-                </div>
-              </div>
-            </div>
-          </fieldset>`;
-  }
+  // src/sound/mixer/mixer.ui.ts
   function createMixerUI(params) {
-    const wrapper = document.createElement("div");
-    wrapper.innerHTML = mixerUI(params);
-    return wrapper;
+    const ui = UIBuilder.addSlider({
+      id: params.name,
+      parameterName: "channel-1-level",
+      label: "Channel 1",
+      parameters: {
+        min: 0,
+        max: 1,
+        step: 0.01,
+        value: 0.7
+      }
+    }).addSlider({
+      id: params.name,
+      parameterName: "channel-2-level",
+      label: "Channel 2",
+      parameters: {
+        min: 0,
+        max: 1,
+        step: 0.01,
+        value: 0.7
+      }
+    }).addSlider({
+      id: params.name,
+      parameterName: "channel-3-level",
+      label: "Channel 3",
+      parameters: {
+        min: 0,
+        max: 1,
+        step: 0.01,
+        value: 0.7
+      }
+    }).build(params.label);
+    return ui;
   }
 
-  // src/mixer/mixer.module.ts
+  // src/sound/mixer/mixer.module.ts
   var MixerModule = class {
-    constructor({ name }, audioContext) {
+    constructor(audioContext, { name, label }) {
       this.name = name;
-      this.ui = createMixerUI({ name: this.name });
-      this.audio = new MixerAudio(
-        {
-          channel1Level: 1,
-          channel2Level: 1,
-          channel3Level: 1
-        },
-        audioContext
-      );
+      const { ui, elements } = createMixerUI({ name: this.name, label });
+      this.ui = ui;
+      this.elements = elements;
+      this.audio = new MixerAudio(audioContext, {
+        channel1Level: 1,
+        channel2Level: 1,
+        channel3Level: 1
+      });
       this.setupEventListeners();
     }
     setupEventListeners() {
-      const channel1LevelInput = this.ui.querySelector(
-        `#${this.name}-channel-1-level`
-      );
-      if (!channel1LevelInput) {
-        throw new Error("channel1LevelInput input not found");
-      }
-      const channel1LevelInputLabel = this.ui.querySelector(
-        `#${this.name}-channel-1-level-label`
-      );
-      if (!channel1LevelInputLabel) {
-        throw new Error("Frequency input label not found");
-      }
-      channel1LevelInputLabel.textContent = channel1LevelInput.value;
-      const channel2LevelInput = this.ui.querySelector(
-        `#${this.name}-channel-2-level`
-      );
-      if (!channel2LevelInput) {
-        throw new Error("channel2LevelInput input not found");
-      }
-      const channel2LevelInputLabel = this.ui.querySelector(
-        `#${this.name}-channel-2-level-label`
-      );
-      if (!channel2LevelInputLabel) {
-        throw new Error("Frequency input label not found");
-      }
-      channel2LevelInputLabel.textContent = channel2LevelInput.value;
-      const channel3LevelInput = this.ui.querySelector(
-        `#${this.name}-channel-3-level`
-      );
-      if (!channel3LevelInput) {
-        throw new Error("channel3LevelInput input not found");
-      }
-      const channel3LevelInputLabel = this.ui.querySelector(
-        `#${this.name}-channel-3-level-label`
-      );
-      if (!channel3LevelInputLabel) {
-        throw new Error("Frequency input label not found");
-      }
-      channel3LevelInputLabel.textContent = channel3LevelInput.value;
-      this.audio.setChannel1Level(Number(channel1LevelInput.value));
-      this.audio.setChannel2Level(Number(channel2LevelInput.value));
-      this.audio.setChannel3Level(Number(channel3LevelInput.value));
-      channel1LevelInput.addEventListener("input", () => {
-        this.audio.setChannel1Level(Number(channel1LevelInput.value));
-        channel1LevelInputLabel.textContent = channel1LevelInput.value;
-      });
-      channel2LevelInput.addEventListener("input", () => {
-        this.audio.setChannel2Level(Number(channel2LevelInput.value));
-        channel2LevelInputLabel.textContent = channel2LevelInput.value;
-      });
-      channel3LevelInput.addEventListener("input", () => {
-        this.audio.setChannel3Level(Number(channel3LevelInput.value));
-        channel3LevelInputLabel.textContent = channel3LevelInput.value;
-      });
+      const eventHandlers = [
+        (value) => {
+          this.audio.setChannel1Level(Number(value));
+        },
+        (value) => {
+          this.audio.setChannel2Level(Number(value));
+        },
+        (value) => {
+          this.audio.setChannel3Level(Number(value));
+        }
+      ];
+      UIEventHandler.attach(this.elements, this.ui, eventHandlers);
     }
   };
 
-  // src/oscillator/oscillator.audio.ts
+  // src/sound/oscillator/oscillator.audio.ts
   var OscillatorAudio = class {
-    constructor({
-      audioContext,
+    constructor(audioContext, {
       frequency,
       type
     }) {
@@ -319,67 +528,64 @@
     }
   };
 
-  // src/oscillator/oscillator.ui.ts
-  function oscillatorUI(params) {
-    return `<fieldset class="rounded-lg border border-primary/30 dark:border-primary/50 p-6">
-            <legend class="px-2 text-sm font-medium text-neutral-700 dark:text-neutral-300">Oscillator</legend>
-            <div class="space-y-6">
-              <div>
-                <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300" for="${params.name}-frequency"
-                  >Frequency (kHz)</label
-                >
-                <div class="mt-2 flex items-center gap-4">
-                  <input
-                    class="h-2 w-full cursor-pointer appearance-none rounded-full bg-primary/20 dark:bg-primary/50 slider-thumb"
-                    id="${params.name}-frequency"
-                    max="4000"
-                    min="1"
-                    type="range"
-                    value="500"
-                  />
-                  <span id="${params.name}-frequency-label" class="w-10 text-right text-sm font-medium text-neutral-900 dark:text-white">500</span>
-                </div>
-              </div>
-              <div>
-                <span class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Type</span>
-                <div id="${params.name}-type" class="mt-2 grid grid-cols-3 gap-2">
-                  <label
-                    class="flex cursor-pointer items-center justify-center rounded border border-primary/30 bg-background-light px-4 py-2 text-center text-sm font-medium text-neutral-700 has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-white dark:border-primary/50 dark:bg-primary/30 dark:text-neutral-200 dark:has-[:checked]:border-primary dark:has-[:checked]:bg-primary dark:has-[:checked]:text-white"
-                  >
-                    <input checked="" class="sr-only" name="${params.name}-type" type="radio" value="sine" />
-                    <span>Sine</span>
-                  </label>
-                  <label
-                    class="flex cursor-pointer items-center justify-center rounded border border-primary/30 bg-background-light px-4 py-2 text-center text-sm font-medium text-neutral-700 has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-white dark:border-primary/50 dark:bg-primary/30 dark:text-neutral-200 dark:has-[:checked]:border-primary dark:has-[:checked]:bg-primary dark:has-[:checked]:text-white"
-                  >
-                    <input class="sr-only" name="${params.name}-type" type="radio" value="sawtooth" />
-                    <span>Saw</span>
-                  </label>
-                  <label
-                    class="flex cursor-pointer items-center justify-center rounded border border-primary/30 bg-background-light px-4 py-2 text-center text-sm font-medium text-neutral-700 has-[:checked]:border-primary has-[:checked]:bg-primary has-[:checked]:text-white dark:border-primary/50 dark:bg-primary/30 dark:text-neutral-200 dark:has-[:checked]:border-primary dark:has-[:checked]:bg-primary dark:has-[:checked]:text-white"
-                  >
-                    <input class="sr-only" name="${params.name}-type" type="radio" value="square" />
-                    <span>Square</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-          </fieldset>`;
-  }
+  // src/sound/oscillator/oscillator.ui.ts
   function createOscillatorUI(params) {
-    const wrapper = document.createElement("div");
-    wrapper.innerHTML = oscillatorUI(params);
-    return wrapper;
+    const ui = UIBuilder.addSlider({
+      id: params.name,
+      parameterName: "frequency",
+      label: "Frequency",
+      parameters: {
+        min: 1,
+        max: 2e3,
+        value: params.frequency,
+        step: 1,
+        type: "range"
+      }
+    }).addRadioButton({
+      id: params.name,
+      label: "Type",
+      parameterName: "type",
+      parameters: [
+        {
+          checked: true,
+          value: "sine",
+          displayValue: "Sine"
+        },
+        {
+          value: "sawtooth",
+          displayValue: "Saw"
+        },
+        {
+          value: "square",
+          displayValue: "Square"
+        },
+        {
+          value: "triangle",
+          displayValue: "Triangle"
+        }
+      ]
+    }).build(params.label);
+    return ui;
   }
 
-  // src/oscillator/oscillator.module.ts
+  // src/sound/oscillator/oscillator.module.ts
   var OscillatorModule = class {
-    constructor({ name, autostart = false }, audioContext) {
+    constructor(audioContext, {
+      name,
+      label,
+      autostart = true,
+      frequency = 1e3
+    }) {
       this.name = name;
       this.audioContext = audioContext;
-      this.ui = createOscillatorUI({ name: this.name });
-      this.audio = new OscillatorAudio({
-        audioContext: this.audioContext,
+      const { ui, elements } = createOscillatorUI({
+        name: this.name,
+        label,
+        frequency
+      });
+      this.ui = ui;
+      this.elements = elements;
+      this.audio = new OscillatorAudio(this.audioContext, {
         frequency: 500,
         type: "sine"
       });
@@ -389,35 +595,15 @@
       this.setupEventListeners();
     }
     setupEventListeners() {
-      const frequencyInput = this.ui.querySelector(
-        `#${this.name}-frequency`
-      );
-      if (!frequencyInput) {
-        throw new Error("Frequency input not found");
-      }
-      const frequencyInputLabel = this.ui.querySelector(
-        `#${this.name}-frequency-label`
-      );
-      if (!frequencyInputLabel) {
-        console.log(`${this.name}-frequency-label`);
-        throw new Error("Frequency input label not found");
-      }
-      frequencyInputLabel.textContent = frequencyInput.value;
-      const typeInput = this.ui.querySelector(
-        `#${this.name}-type`
-      );
-      if (!typeInput) {
-        throw new Error("Type input not found");
-      }
-      frequencyInput.addEventListener("input", () => {
-        this.audio.setFrequency(Number(frequencyInput.value));
-        frequencyInputLabel.textContent = frequencyInput.value;
-      });
-      typeInput.addEventListener("change", (event) => {
-        this.audio.setType(
-          event.target.value
-        );
-      });
+      const eventHandlers = [
+        (value) => {
+          this.audio.setFrequency(Number(value));
+        },
+        (value) => {
+          this.audio.setType(value);
+        }
+      ];
+      UIEventHandler.attach(this.elements, this.ui, eventHandlers);
     }
   };
 
@@ -428,54 +614,155 @@
     if (!contentContext) {
       throw new Error("Content element not found");
     }
-    const toggleAudioButton = document.createElement("div");
-    toggleAudioButton.innerHTML = `<button class="w-full rounded-lg bg-primary py-3 text-sm font-bold text-white transition-colors hover:bg-primary/90">Toggle Audio</button>`;
-    contentContext.appendChild(toggleAudioButton);
-    const triggerEnvelopesGlobal = document.createElement("div");
-    triggerEnvelopesGlobal.innerHTML = `<button class="w-full rounded-lg bg-primary py-3 text-sm font-bold text-white transition-colors hover:bg-primary/90">Trigger Envelopes (Global)</button>`;
-    contentContext.appendChild(triggerEnvelopesGlobal);
-    const osc1 = new OscillatorModule(
-      { name: "osc1", autostart: true },
-      audioContext
-    );
-    contentContext.appendChild(osc1.ui);
-    const dEnvelope1 = new DEnvelopeModule({ name: "denv1" }, audioContext);
-    contentContext.appendChild(dEnvelope1.ui);
-    const osc2 = new OscillatorModule(
-      { name: "osc2", autostart: true },
-      audioContext
-    );
-    contentContext.appendChild(osc2.ui);
-    const dEnvelope2 = new DEnvelopeModule({ name: "denv2" }, audioContext);
-    contentContext.appendChild(dEnvelope2.ui);
-    const osc3 = new OscillatorModule(
-      { name: "osc3", autostart: true },
-      audioContext
-    );
-    contentContext.appendChild(osc3.ui);
-    const dEnvelope3 = new DEnvelopeModule({ name: "denv3" }, audioContext);
-    contentContext.appendChild(dEnvelope3.ui);
-    const mixer1 = new MixerModule({ name: "mixer1" }, audioContext);
+    const globalButtons = UIBuilder.addButton({
+      id: "global",
+      parameterName: "toggle-audio",
+      displayValue: "Toggle Audio"
+    }).addButton({
+      id: "global",
+      parameterName: "trigger-envelopes",
+      displayValue: "Trigger"
+    }).build("Global");
+    contentContext.appendChild(globalButtons.ui);
+    const dcaFm12Level = new DcaModule(audioContext, {
+      name: "dca1",
+      label: "Oscillator 1 > 2 FM Level",
+      gain: 100
+    });
+    const osc1 = new OscillatorModule(audioContext, {
+      name: "osc1",
+      label: "Oscillator 1",
+      frequency: 722
+    });
+    const ampEnvelope1 = new DEnvelopeModule(audioContext, {
+      name: "ampenv1",
+      label: "DCA 1 Envelope"
+    });
+    const pitchEnvelopeDca1 = new DcaModule(audioContext, {
+      name: "pitchEnvelopeDca1",
+      label: "Pitch 2 Envelope Level",
+      gain: 100
+    });
+    const pitchEnvelope1 = new DEnvelopeModule(audioContext, {
+      name: "pitchenv1",
+      label: "Pitch 1 Envelope"
+    });
+    const dcaFm23Level = new DcaModule(audioContext, {
+      name: "dca2",
+      label: "Oscillator 2 > 3 FM Level",
+      gain: 100
+    });
+    const osc2 = new OscillatorModule(audioContext, {
+      name: "osc2",
+      label: "Oscillator 2",
+      frequency: 56
+    });
+    const ampEnvelope2 = new DEnvelopeModule(audioContext, {
+      name: "denv2",
+      label: "DCA 2 Envelope"
+    });
+    const pitchEnvelopeDca2 = new DcaModule(audioContext, {
+      name: "pitchEnvelopeDca2",
+      label: "Pitch 2 Envelope Level",
+      gain: 50
+    });
+    const pitchEnvelope2 = new DEnvelopeModule(audioContext, {
+      name: "pitchenv2",
+      label: "Pitch 2 Envelope"
+    });
+    const dcaFm31Level = new DcaModule(audioContext, {
+      name: "dca3",
+      label: "Oscillator 3 > 1 FM Level",
+      gain: 300
+    });
+    const osc3 = new OscillatorModule(audioContext, {
+      name: "osc3",
+      label: "Oscillator 3",
+      frequency: 175
+    });
+    const ampEnvelope3 = new DEnvelopeModule(audioContext, {
+      name: "denv3",
+      label: "DCA 3 Envelope"
+    });
+    const pitchEnvelopeDca3 = new DcaModule(audioContext, {
+      name: "pitchEnvelopeDca3",
+      label: "Pitch 3 Envelope Level",
+      gain: 500
+    });
+    const pitchEnvelope3 = new DEnvelopeModule(audioContext, {
+      name: "pitchenv3",
+      label: "Pitch 3 Envelope"
+    });
+    const operator1 = UIBuilder.build("Operator 1", [
+      dcaFm31Level.ui,
+      osc1.ui,
+      ampEnvelope1.ui,
+      pitchEnvelopeDca1.ui,
+      pitchEnvelope1.ui
+    ]);
+    contentContext.appendChild(operator1.ui);
+    const operator2 = UIBuilder.build("Operator 2", [
+      dcaFm12Level.ui,
+      osc2.ui,
+      ampEnvelope2.ui,
+      pitchEnvelopeDca2.ui,
+      pitchEnvelope2.ui
+    ]);
+    contentContext.appendChild(operator2.ui);
+    const operator3 = UIBuilder.build("Operator 3", [
+      dcaFm23Level.ui,
+      osc3.ui,
+      ampEnvelope3.ui,
+      pitchEnvelopeDca3.ui,
+      pitchEnvelope3.ui
+    ]);
+    contentContext.appendChild(operator3.ui);
+    const mixer1 = new MixerModule(audioContext, {
+      name: "mixer1",
+      label: "Mixer"
+    });
     contentContext.appendChild(mixer1.ui);
     mixer1.audio.nodes.sum.connect(audioContext.destination);
-    osc1.audio.node.connect(dEnvelope1.audio.node).connect(new GainNode(audioContext, { gain: 1e3 })).connect(osc2.audio.node.frequency);
-    osc2.audio.node.connect(dEnvelope2.audio.node).connect(new GainNode(audioContext, { gain: 1e3 })).connect(osc3.audio.node.frequency);
-    osc1.audio.node.connect(dEnvelope1.audio.node).connect(mixer1.audio.nodes.channel1);
-    osc2.audio.node.connect(dEnvelope2.audio.node).connect(mixer1.audio.nodes.channel2);
-    osc3.audio.node.connect(dEnvelope3.audio.node).connect(mixer1.audio.nodes.channel3);
-    toggleAudioButton.addEventListener("click", async () => {
-      console.log("Button clicked");
-      if (audioContext.state === "suspended") {
-        await audioContext.resume();
-      } else if (audioContext.state === "running") {
-        await audioContext.suspend();
+    osc1.audio.node.connect(ampEnvelope1.audio.node).connect(dcaFm12Level.audio.node).connect(osc2.audio.node.frequency);
+    new ConstantModule(audioContext).audio.node.connect(pitchEnvelopeDca1.audio.node).connect(pitchEnvelope1.audio.node).connect(osc1.audio.node.frequency);
+    osc2.audio.node.connect(ampEnvelope2.audio.node).connect(dcaFm23Level.audio.node).connect(osc3.audio.node.frequency);
+    new ConstantModule(audioContext).audio.node.connect(pitchEnvelopeDca2.audio.node).connect(pitchEnvelope2.audio.node).connect(osc2.audio.node.frequency);
+    osc3.audio.node.connect(ampEnvelope3.audio.node).connect(dcaFm31Level.audio.node).connect(osc1.audio.node.frequency);
+    new ConstantModule(audioContext).audio.node.connect(pitchEnvelopeDca3.audio.node).connect(pitchEnvelope3.audio.node).connect(osc3.audio.node.frequency);
+    osc1.audio.node.connect(ampEnvelope1.audio.node).connect(mixer1.audio.nodes.channel1);
+    osc2.audio.node.connect(ampEnvelope2.audio.node).connect(mixer1.audio.nodes.channel2);
+    osc3.audio.node.connect(ampEnvelope3.audio.node).connect(mixer1.audio.nodes.channel3);
+    function envelopesHandler() {
+      ampEnvelope1.audio.trigger(audioContext.currentTime);
+      pitchEnvelope1.audio.trigger(audioContext.currentTime);
+      ampEnvelope2.audio.trigger(audioContext.currentTime);
+      pitchEnvelope2.audio.trigger(audioContext.currentTime);
+      ampEnvelope3.audio.trigger(audioContext.currentTime);
+      pitchEnvelope3.audio.trigger(audioContext.currentTime);
+    }
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "w" || event.key === "W") {
+        envelopesHandler();
       }
     });
-    triggerEnvelopesGlobal.addEventListener("click", () => {
-      dEnvelope1.audio.trigger();
-      dEnvelope2.audio.trigger();
-      dEnvelope3.audio.trigger();
-    });
+    const globalButtonsEventHandlers = [
+      async () => {
+        console.log("Button clicked");
+        if (audioContext.state === "suspended") {
+          await audioContext.resume();
+        } else if (audioContext.state === "running") {
+          await audioContext.suspend();
+        }
+      },
+      () => {
+        envelopesHandler();
+      }
+    ];
+    UIEventHandler.attach(
+      globalButtons.elements,
+      globalButtons.ui,
+      globalButtonsEventHandlers
+    );
   }
   window.addEventListener("load", () => {
     console.log("Window loaded");
@@ -484,3 +771,4 @@
     });
   });
 })();
+//# sourceMappingURL=bundle.js.map
